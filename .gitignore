@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.pyo
+*.pyd
+*.env
+.env*
+venv/
+ENV/
+.venv/
+env/
+
+# SQLite
+uil_tutor.db
+*.sqlite3
+*.db
+
+# Uploads
+API/uploads/
+
+# Logs
+*.log
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# System files
+Thumbs.db
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Windows
+*.lnk

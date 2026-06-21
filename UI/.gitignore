@@ -1,0 +1,8 @@
+# Node and npm
+node_modules/
+
+# Static web
+*.log
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.env
+.env.*
+venv/
+.venv/
+
+# SQLite
+uil_tutor.db
+*.sqlite3
+*.db
+
+# Uploads
+uploads/
+
+# Logs
+*.log
+
+# IDEs and editors
+.vscode/
+.idea/

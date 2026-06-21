@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UIL Tutor AI - Intelligent Academic Performance Tracking</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1a5490;
+            --primary-light: #2c6cb3;
+            --primary-dark: #0d3d6b;
+            --accent: #ff6b35;
+            --accent-light: #ff8556;
+            --text-dark: #1a1a2e;
+            --text-medium: #4a5568;
+            --text-light: #718096;
+            --bg-cream: #faf8f5;
+            --bg-white: #ffffff;
+            --border: #e2e8f0;
+            --success: #38a169;
+            --warning: #dd6b20;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg-cream);
+            color: var(--text-dark);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        /* Animated Background */
+        .bg-pattern {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 0;
+            opacity: 0.03;
+            background-image: 
+                linear-gradient(30deg, var(--primary) 12%, transparent 12.5%, transparent 87%, var(--primary) 87.5%, var(--primary)),
+                linear-gradient(150deg, var(--primary) 12%, transparent 12.5%, transparent 87%, var(--primary) 87.5%, var(--primary)),
+                linear-gradient(30deg, var(--primary) 12%, transparent 12.5%, transparent 87%, var(--primary) 87.5%, var(--primary)),
+                linear-gradient(150deg, var(--primary) 12%, transparent 12.5%, transparent 87%, var(--primary) 87.5%, var(--primary));
+            background-size: 80px 140px;
+            background-position: 0 0, 0 0, 40px 70px, 40px 70px;
+            animation: patternMove 20s linear infinite;
+        }
+        
+        @keyframes patternMove {
+            0% { background-position: 0 0, 0 0, 40px 70px, 40px 70px; }
+            100% { background-position: 80px 140px, 80px 140px, 120px 210px, 120px 210px; }
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Header */
+        header {
+            padding: 2rem 0;
+            position: relative;
+            z-index: 10;
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-white);
+            padding: 1.5rem 2rem;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(26, 84, 144, 0.08);
+            animation: slideDown 0.6s ease-out;
+        }
+        
+        @keyframes slideDown {
+            from {
+                transform: translateY(-30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Fraunces', serif;
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: white;
+            box-shadow: 0 4px 12px rgba(26, 84, 144, 0.3);
+        }
+        
+        .logo h1 {
+            font-family: 'Fraunces', serif;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            letter-spacing: -0.02em;
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 2rem;
+        }
+        
+        nav a {
+            text-decoration: none;
+            color: var(--text-medium);
+            font-weight: 500;
+            transition: color 0.3s;
+            position: relative;
+        }
+        
+        nav a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--accent);
+            transition: width 0.3s;
+        }
+        
+        nav a:hover {
+            color: var(--primary);
+        }
+        
+        nav a:hover::after {
+            width: 100%;
+        }
+        
+        /* Hero Section */
+        .hero {
+            padding: 4rem 0 6rem;
+            text-align: center;
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                transform: translateY(40px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .hero h2 {
+            font-family: 'Fraunces', serif;
+            font-size: 3.5rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-medium);
+            max-width: 700px;
+            margin: 0 auto 2rem;
+        }
+        
+        .badge {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            padding: 0.5rem 1.25rem;
+            border-radius: 50px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        /* Main App Container */
+        .app-container {
+            background: var(--bg-white);
+            border-radius: 24px;
+            padding: 3rem;
+            box-shadow: 0 10px 40px rgba(26, 84, 144, 0.1);
+            margin-bottom: 4rem;
+            position: relative;
+            overflow: hidden;
+            animation: fadeInUp 0.8s ease-out 0.4s both;
+        }
+        
+        .app-container::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -10%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(26, 84, 144, 0.08) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: float 8s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-20px, 20px); }
+        }
+        
+        .app-header {
+            text-align: center;
+            margin-bottom: 3rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .app-header h3 {
+            font-family: 'Fraunces', serif;
+            font-size: 2rem;
+            color: var(--primary-dark);
+            margin-bottom: 0.5rem;
+        }
+        
+        .app-header p {
+            color: var(--text-light);
+        }
+        
+        /* Menu */
+        .menu {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            max-width: 500px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .menu-item {
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 1.75rem 2rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .menu-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(26, 84, 144, 0.05), transparent);
+            transition: left 0.5s;
+        }
+        
+        .menu-item:hover::before {
+            left: 100%;
+        }
+        
+        .menu-item:hover {
+            border-color: var(--primary);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 28px rgba(26, 84, 144, 0.15);
+        }
+        
+        .menu-item h4 {
+            font-family: 'Fraunces', serif;
+            font-size: 1.5rem;
+            color: var(--primary-dark);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .menu-item-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+        
+        .menu-item p {
+            color: var(--text-medium);
+            font-size: 0.95rem;
+            margin-left: 48px;
+        }
+        
+        .menu-item.exit {
+            background: linear-gradient(135deg, #fee 0%, #fdd 100%);
+            border-color: #fcc;
+        }
+        
+        .menu-item.exit:hover {
+            border-color: #f99;
+        }
+        
+        .menu-item.exit .menu-item-icon {
+            background: linear-gradient(135deg, #e53e3e, #c53030);
+        }
+        
+        /* Modal Base */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(26, 26, 46, 0.7);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: var(--bg-white);
+            border-radius: 24px;
+            padding: 3rem;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            animation: slideUp 0.4s ease-out;
+            box-shadow: 0 20px 60px rgba(26, 84, 144, 0.2);
+        }
+        
+        @keyframes slideUp {
+            from {
+                transform: translateY(40px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border);
+        }
+        
+        .modal-header h3 {
+            font-family: 'Fraunces', serif;
+            font-size: 1.75rem;
+            color: var(--primary-dark);
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-light);
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        
+        .close-btn:hover {
+            background: var(--border);
+            color: var(--text-dark);
+        }
+        
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+        }
+        
+        .file-upload {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: var(--bg-cream);
+        }
+        
+        .file-upload:hover {
+            border-color: var(--primary);
+            background: rgba(26, 84, 144, 0.05);
+        }
+        
+        .file-upload input[type="file"] {
+            display: none;
+        }
+        
+        .upload-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.6;
+        }
+        
+        .file-upload p {
+            color: var(--text-medium);
+            font-size: 0.95rem;
+        }
+        
+        .file-upload.has-file {
+            border-color: var(--success);
+            background: rgba(56, 161, 105, 0.1);
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(26, 84, 144, 0.1);
+        }
+        
+        button {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(26, 84, 144, 0.3);
+            width: 100%;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(26, 84, 144, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button.secondary {
+            background: var(--border);
+            color: var(--text-dark);
+            box-shadow: none;
+        }
+        
+        button.secondary:hover {
+            background: #cbd5e0;
+        }
+        
+        /* Results Display */
+        .results-box {
+            background: var(--bg-cream);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+        
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .result-label {
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+        
+        .result-value {
+            color: var(--primary);
+            font-weight: 700;
+        }
+        
+        /* Evaluation Display */
+        .eval-card {
+            background: var(--bg-white);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .eval-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1.5rem;
+        }
+        
+        .student-info h4 {
+            font-family: 'Fraunces', serif;
+            font-size: 1.5rem;
+            color: var(--primary-dark);
+            margin-bottom: 0.25rem;
+        }
+        
+        .student-info p {
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+        
+        .score-badge {
+            background: linear-gradient(135deg, var(--success), #48bb78);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1.25rem;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .stat-item {
+            background: var(--bg-cream);
+            padding: 1rem;
+            border-radius: 10px;
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-light);
+            margin-bottom: 0.25rem;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-dark);
+        }
+        
+        .focus-areas {
+            background: rgba(255, 107, 53, 0.1);
+            border-left: 4px solid var(--accent);
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+        }
+        
+        .focus-areas h5 {
+            color: var(--accent);
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+        
+        .focus-areas ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .focus-areas li {
+            padding: 0.5rem 0;
+            color: var(--text-medium);
+            position: relative;
+            padding-left: 1.5rem;
+        }
+        
+        .focus-areas li::before {
+            content: '▸';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: 700;
+        }
+        
+        .answer-sheets {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .sheet-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            width: auto;
+        }
+        
+        .sheet-btn:hover {
+            background: var(--primary-light);
+            transform: translateY(-2px);
+        }
+        
+        /* Disclaimer */
+        .disclaimer {
+            background: rgba(255, 107, 53, 0.1);
+            border-left: 4px solid var(--accent);
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            color: var(--text-medium);
+        }
+        
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 0;
+            color: var(--text-light);
+            animation: fadeInUp 0.8s ease-out 0.6s both;
+        }
+        
+        footer p {
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h2 {
+                font-size: 2.5rem;
+            }
+            
+            .app-container {
+                padding: 2rem;
+            }
+            
+            .menu-item {
+                padding: 1.5rem;
+            }
+            
+            .modal-content {
+                padding: 2rem;
+            }
+            
+            nav ul {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                gap: 1.5rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">U</div>
+                    <h1>UIL Tutor AI</h1>
+                </div>
+                <nav>
+                    <ul>
+                        <li><a href="#home">Home</a></li>
+                        <li><a href="#about">About</a></li>
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#contact">Contact</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+        
+        <main>
+            <section class="hero">
+                <div class="badge">Texas UIL Academic Excellence</div>
+                <h2>Intelligent Performance<br>Tracking for Champions</h2>
+                <p>Empowering Texas students to excel in UIL tournaments with AI-powered evaluation, personalized feedback, and comprehensive performance analytics.</p>
+            </section>
+            
+            <div class="app-container">
+                <div class="app-header">
+                    <h3>Get Started</h3>
+                    <p>Choose an option below to begin your journey to academic excellence</p>
+                </div>
+                
+                <div class="menu">
+                    <div class="menu-item" onclick="openModal('trainModal')">
+                        <h4>
+                            <span class="menu-item-icon">🎓</span>
+                            Train the Tutor
+                        </h4>
+                        <p>Upload sample questions and answer keys to build the AI's knowledge base</p>
+                    </div>
+                    
+                    <div class="menu-item" onclick="openModal('evalModal')">
+                        <h4>
+                            <span class="menu-item-icon">📊</span>
+                            Student Evaluation
+                        </h4>
+                        <p>Evaluate student performance and generate personalized recommendations</p>
+                    </div>
+                    
+                    <div class="menu-item exit" onclick="handleExit()">
+                        <h4>
+                            <span class="menu-item-icon">👋</span>
+                            Exit
+                        </h4>
+                        <p>Close the application</p>
+                    </div>
+                </div>
+                
+                <div class="disclaimer">
+                    <strong>⚠️ Disclaimer:</strong> This application is a supplemental tool designed to support tutors and students. It does not replace professional coaching and human guidance. Please verify all recommendations with your tutor or coach.
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p><strong>UIL Tutor AI</strong> - Starting with Number Sense & Mathematics</p>
+            <p>Future expansions: Debate, Speech, and other UIL events</p>
+            <p style="margin-top: 1rem; font-size: 0.875rem;">© 2026 UIL Tutor AI. Built for Texas academic excellence.</p>
+        </footer>
+    </div>
+    
+    <!-- Train the Tutor Modal -->
+    <div id="trainModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Train the Tutor</h3>
+                <button class="close-btn" onclick="closeModal('trainModal')">✕</button>
+            </div>
+            
+            <form onsubmit="handleTraining(event)">
+                <div class="form-group">
+                    <label>Upload Questions</label>
+                    <div class="file-upload" onclick="document.getElementById('questionsFile').click()">
+                        <input type="file" id="questionsFile" accept=".pdf,.jpg,.png" onchange="updateFileName(this, 'questionsLabel')">
+                        <div class="upload-icon">📄</div>
+                        <p id="questionsLabel">Click to upload or drag and drop<br><small>PDF, JPG, or PNG</small></p>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Upload Answer Key</label>
+                    <div class="file-upload" onclick="document.getElementById('answerFile').click()">
+                        <input type="file" id="answerFile" accept=".pdf,.jpg,.png" onchange="updateFileName(this, 'answerLabel')">
+                        <div class="upload-icon">✅</div>
+                        <p id="answerLabel">Click to upload or drag and drop<br><small>PDF, JPG, or PNG</small></p>
+                    </div>
+                </div>
+                
+                <button type="submit">Upload & Train</button>
+            </form>
+            
+            <div class="disclaimer" style="margin-top: 1.5rem;">
+                Upload approximately 100 past question papers to help the AI learn patterns and improve evaluation accuracy.
+            </div>
+        </div>
+    </div>
+    
+    <!-- Student Evaluation Modal -->
+    <div id="evalModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Student Evaluation</h3>
+                <button class="close-btn" onclick="closeModal('evalModal')">✕</button>
+            </div>
+            
+            <form onsubmit="handleEvaluation(event)">
+                <div class="form-group">
+                    <label>Student ID</label>
+                    <input type="text" id="studentId" placeholder="Enter student ID" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Upload Answer Sheet</label>
+                    <div class="file-upload" onclick="document.getElementById('studentAnswers').click()">
+                        <input type="file" id="studentAnswers" accept=".pdf,.jpg,.png" onchange="updateFileName(this, 'studentLabel')">
+                        <div class="upload-icon">📝</div>
+                        <p id="studentLabel">Click to upload or drag and drop<br><small>PDF, JPG, or PNG</small></p>
+                    </div>
+                </div>
+                
+                <button type="submit">Evaluate</button>
+            </form>
+            
+            <div id="resultsSection" style="display: none; margin-top: 2rem;">
+                <h4 style="font-family: 'Fraunces', serif; color: var(--primary-dark); margin-bottom: 1rem;">Results</h4>
+                <div class="results-box">
+                    <div class="result-item">
+                        <span class="result-label">Correct Answers:</span>
+                        <span class="result-value" id="correctAnswers">-</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Wrong Answers:</span>
+                        <span class="result-value" id="wrongAnswers">-</span>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                    <button onclick="viewDetailedEval()" style="flex: 1;">View Detailed Evaluation</button>
+                    <button onclick="viewPriorEvals()" class="secondary" style="flex: 1;">View Prior Evaluations</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Detailed Evaluation Modal -->
+    <div id="detailedModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Detailed Evaluation</h3>
+                <button class="close-btn" onclick="closeModal('detailedModal')">✕</button>
+            </div>
+            
+            <div class="eval-card">
+                <div class="eval-header">
+                    <div class="student-info">
+                        <h4>John Doe</h4>
+                        <p>Student ID: JD2024</p>
+                    </div>
+                    <div class="score-badge">
+                        120<br><small style="font-size: 0.75rem; font-weight: 400;">Avg Score</small>
+                    </div>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Tests Taken</div>
+                        <div class="stat-value">10</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Avg Correct</div>
+                        <div class="stat-value">45</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Avg Wrong</div>
+                        <div class="stat-value">5</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Improvement</div>
+                        <div class="stat-value">+12%</div>
+                    </div>
+                </div>
+                
+                <div class="focus-areas">
+                    <h5>Areas to Focus On</h5>
+                    <ul>
+                        <li>Roman numbers - Practice conversion between Roman and Arabic numerals</li>
+                        <li>Square Roots - Focus on mental calculation techniques for perfect squares</li>
+                        <li>Volume unit conversions - Review metric and imperial volume relationships</li>
+                    </ul>
+                </div>
+                
+                <div style="margin-top: 1.5rem;">
+                    <strong style="color: var(--text-dark); display: block; margin-bottom: 0.75rem;">Previous Tests</strong>
+                    <div class="answer-sheets">
+                        <button class="sheet-btn" onclick="showNotification('Opening test 1 results...')">Test 1</button>
+                        <button class="sheet-btn" onclick="showNotification('Opening test 2 results...')">Test 2</button>
+                        <button class="sheet-btn" onclick="showNotification('Opening test 3 results...')">Test 3</button>
+                        <button class="sheet-btn" onclick="showNotification('Opening test 4 results...')">Test 4</button>
+                        <button class="sheet-btn" onclick="showNotification('View more tests...')">></button>
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="closeModal('detailedModal')">Close</button>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+
+</body>
+</html>

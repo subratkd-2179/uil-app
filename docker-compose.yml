@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  api:
+    build: ./API
+    container_name: uil-tutor-api
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./API/uploads:/app/uploads
+      - ./API/uil_tutor.db:/app/uil_tutor.db
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - uil-network
+
+networks:
+  uil-network:
+    driver: bridge
+
+# Usage:
+# docker-compose up                 # Start services
+# docker-compose down               # Stop services
+# docker-compose logs -f api        # View logs
+# docker-compose ps                 # List running services
