@@ -476,7 +476,7 @@
             background: rgba(56, 161, 105, 0.1);
         }
         
-        input[type="text"] {
+        input[type="text"], input[type="password"], input[type="email"] {
             width: 100%;
             padding: 0.875rem 1rem;
             border: 2px solid var(--border);
@@ -486,7 +486,7 @@
             transition: all 0.3s;
         }
         
-        input[type="text"]:focus {
+        input[type="text"]:focus, input[type="password"]:focus, input[type="email"]:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(26, 84, 144, 0.1);
@@ -806,6 +806,53 @@
         </footer>
     </div>
     
+    <!-- Authentication Modal (Login / Register) -->
+    <div id="authModal" class="modal active">
+        <div class="modal-content" style="max-width:420px; padding:2rem;">
+            <div class="modal-header">
+                <h3 id="authTitle">Welcome — Sign in or Register</h3>
+            </div>
+
+            <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
+                <button id="showLoginBtn" class="" style="flex:1; padding:0.75rem; border-radius:10px; background:var(--primary); color:white;" onclick="showAuthTab('login')">Login</button>
+                <button id="showRegisterBtn" class="" style="flex:1; padding:0.75rem; border-radius:10px; background:var(--border); color:var(--text-dark);" onclick="showAuthTab('register')">Register</button>
+            </div>
+
+            <div id="loginForm">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="loginUsername" name="username" autocomplete="username" placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" name="password" autocomplete="current-password" placeholder="Enter password">
+                </div>
+                <button onclick="handleLogin(event)">Sign In</button>
+            </div>
+
+            <div id="registerForm" style="display:none;">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="regUsername" name="username" autocomplete="username" placeholder="Choose a username">
+                </div>
+                <div class="form-group">
+                    <label>Email (optional)</label>
+                    <input type="email" id="regEmail" name="email" autocomplete="email" placeholder="you@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="regPassword" name="password" autocomplete="new-password" placeholder="Choose a strong password">
+                </div>
+                <button onclick="handleRegister(event)">Create Account</button>
+                <button type="button" class="secondary" onclick="registerSampleUser()" style="margin-top:0.75rem;">Register sample account</button>
+            </div>
+
+            <div style="margin-top:1rem; color:var(--text-light); font-size:0.9rem;">
+                By signing in you accept the terms and allow storing a session token locally.
+            </div>
+        </div>
+    </div>
+
     <!-- Train the Tutor Modal -->
     <div id="trainModal" class="modal">
         <div class="modal-content">

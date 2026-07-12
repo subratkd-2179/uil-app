@@ -21,6 +21,8 @@ function closeModal(modalId) {
 // Close modal when clicking outside
 window.onclick = function(event) {
     if (event.target.classList.contains('modal')) {
+        // Prevent closing auth modal by clicking outside
+        if (event.target.id === 'authModal') return;
         event.target.classList.remove('active');
     }
 }
@@ -60,6 +62,144 @@ function setupDragAndDrop(inputId) {
         const labelId = dropZone.nextElementSibling?.id;
         if (labelId) updateFileName(input, labelId);
     });
+}
+
+// ==========================================
+// Authentication (Login / Register)
+// ==========================================
+
+function showAuthTab(tab) {
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const showLoginBtn = document.getElementById('showLoginBtn');
+    const showRegisterBtn = document.getElementById('showRegisterBtn');
+
+    if (tab === 'login') {
+        loginForm.style.display = '';
+        registerForm.style.display = 'none';
+        showLoginBtn.style.background = 'var(--primary)';
+        showLoginBtn.style.color = 'white';
+        showRegisterBtn.style.background = 'var(--border)';
+        showRegisterBtn.style.color = 'var(--text-dark)';
+    } else {
+        loginForm.style.display = 'none';
+        registerForm.style.display = '';
+        showLoginBtn.style.background = 'var(--border)';
+        showLoginBtn.style.color = 'var(--text-dark)';
+        showRegisterBtn.style.background = 'var(--primary)';
+        showRegisterBtn.style.color = 'white';
+    }
+}
+
+async function handleLogin(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+
+    if (!username || !password) {
+        showNotification('Please enter username and password.', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+            localStorage.setItem('authToken', data.token);
+            localStorage.setItem('username', username);
+            onAuthSuccess();
+            showNotification('Logged in successfully!', 'success');
+        } else {
+            showNotification(data.error || 'Login failed', 'error');
+        }
+    } catch (err) {
+        console.error('Login error', err);
+        showNotification('Login request failed.', 'error');
+    }
+}
+
+async function handleRegister(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    const username = document.getElementById('regUsername').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value.trim();
+
+    if (!username || !password) {
+        showNotification('Please fill in username and password.', 'error');
+        return;
+    }
+
+    return submitRegisterRequest({ username, password, email });
+}
+
+async function registerSampleUser() {
+    return submitRegisterRequest({
+        email: 'dash1@gmail.com',
+        password: 'Subrat',
+        username: 'Dash'
+    });
+}
+
+async function submitRegisterRequest(payload) {
+    try {
+        const res = await fetch(`${API_BASE_URL}/register`, {
+            method: 'POST',
+            headers: {
+                accept: '*/*',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            showNotification('Account created. You may now log in.', 'success');
+            showAuthTab('login');
+            document.getElementById('loginUsername').value = payload.username;
+            return true;
+        }
+
+        showNotification(data.error || 'Registration failed', 'error');
+        return false;
+    } catch (err) {
+        console.error('Registration error', err);
+        showNotification('Registration request failed.', 'error');
+        return false;
+    }
+}
+
+function onAuthSuccess() {
+    // Close auth modal and reveal main UI
+    const authModal = document.getElementById('authModal');
+    if (authModal) authModal.classList.remove('active');
+    const username = localStorage.getItem('username') || '';
+    // Optionally show username in header
+    const logo = document.querySelector('.header-content');
+    if (logo && username) {
+        let userEl = document.getElementById('userBanner');
+        if (!userEl) {
+            userEl = document.createElement('div');
+            userEl.id = 'userBanner';
+            userEl.style.fontWeight = '600';
+            userEl.style.color = 'var(--text-medium)';
+            document.querySelector('.header-content').appendChild(userEl);
+        }
+        userEl.textContent = `Signed in as ${username}`;
+    }
+}
+
+function ensureAuth() {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+        onAuthSuccess();
+    } else {
+        // show auth modal (prevent closing by clicking outside)
+        const authModal = document.getElementById('authModal');
+        if (authModal) authModal.classList.add('active');
+    }
 }
 
 // ==========================================
@@ -434,4 +574,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     console.log('UIL Tutor AI application initialized successfully');
+    // Check authentication on load
+    ensureAuth();
 });

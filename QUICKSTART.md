@@ -94,6 +94,7 @@ You should see the UIL Tutor AI homepage with three menu options.
 - `F12` - Open browser developer tools (for debugging)
 - `Ctrl+Shift+Delete` - Clear browser cache (if issues occur)
 
+
 ## File Locations
 
 ```
@@ -110,9 +111,13 @@ c:\UIL APP\API\uil_tutor.db         ← Database (auto-created)
 Keep these commands handy:
 
 ```bash
-# Start the server
+# Start the server(API)
 cd c:\UIL APP\API
 python app.py
+
+#UI
+cd "C:\UIL APP"
+python -m http.server 8000
 
 # Check if API is working
 curl http://localhost:5000/api/health
@@ -122,6 +127,9 @@ dir c:\UIL APP\API\uploads\
 
 # Reset database (deletes all data)
 del c:\UIL APP\API\uil_tutor.db
+
+# swagger url
+http://localhost:5000/api/swagger.json
 ```
 
 ## Tips for Best Results
