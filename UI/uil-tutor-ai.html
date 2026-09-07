@@ -902,6 +902,11 @@
                     <label>Student ID</label>
                     <input type="text" id="studentId" placeholder="Enter student ID" required>
                 </div>
+
+                <div class="form-group" style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                    <input type="checkbox" id="callAiToggle" checked>
+                    <label for="callAiToggle" style="margin: 0; font-weight: 600;">Call AI for a fresh evaluation</label>
+                </div>
                 
                 <div class="form-group">
                     <label>Upload Answer Sheet</label>
@@ -917,7 +922,11 @@
             
             <div id="resultsSection" style="display: none; margin-top: 2rem;">
                 <h4 style="font-family: 'Fraunces', serif; color: var(--primary-dark); margin-bottom: 1rem;">Results</h4>
-                <div class="results-box">
+                <div class="results-box" style="display: grid; gap: 0.75rem;">
+                    <div class="result-item">
+                        <span class="result-label">Accuracy:</span>
+                        <span class="result-value" id="accuracyValue">-</span>
+                    </div>
                     <div class="result-item">
                         <span class="result-label">Correct Answers:</span>
                         <span class="result-value" id="correctAnswers">-</span>
@@ -926,8 +935,17 @@
                         <span class="result-label">Wrong Answers:</span>
                         <span class="result-value" id="wrongAnswers">-</span>
                     </div>
+                    <div class="result-item">
+                        <span class="result-label">Total Questions:</span>
+                        <span class="result-value" id="totalQuestions">-</span>
+                    </div>
                 </div>
-                
+
+                <div style="margin-top: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 12px; background: rgba(26,84,144,0.03);">
+                    <strong style="display: block; margin-bottom: 0.5rem; color: var(--text-dark);">Summary</strong>
+                    <p id="summaryText" style="margin: 0; color: var(--text-medium); line-height: 1.6;">-</p>
+                </div>
+
                 <div style="display: flex; gap: 1rem; margin-top: 1rem;">
                     <button onclick="viewDetailedEval()" style="flex: 1;">View Detailed Evaluation</button>
                     <button onclick="viewPriorEvals()" class="secondary" style="flex: 1;">View Prior Evaluations</button>
@@ -938,7 +956,7 @@
     
     <!-- Detailed Evaluation Modal -->
     <div id="detailedModal" class="modal">
-        <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-content" style="max-width: 980px; max-height: 90vh; overflow-y: auto;">
             <div class="modal-header">
                 <h3>Detailed Evaluation</h3>
                 <button class="close-btn" onclick="closeModal('detailedModal')">✕</button>
@@ -947,55 +965,62 @@
             <div class="eval-card">
                 <div class="eval-header">
                     <div class="student-info">
-                        <h4>John Doe</h4>
-                        <p>Student ID: JD2024</p>
+                        <h4 id="detailedStudentName">Student</h4>
+                        <p id="detailedStudentId">Student ID: -</p>
                     </div>
-                    <div class="score-badge">
-                        120<br><small style="font-size: 0.75rem; font-weight: 400;">Avg Score</small>
-                    </div>
-                </div>
-                
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <div class="stat-label">Tests Taken</div>
-                        <div class="stat-value">10</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Avg Correct</div>
-                        <div class="stat-value">45</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Avg Wrong</div>
-                        <div class="stat-value">5</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Improvement</div>
-                        <div class="stat-value">+12%</div>
+                    <div class="score-badge" id="detailedAccuracyBadge">
+                        0%<br><small style="font-size: 0.75rem; font-weight: 400;">Accuracy</small>
                     </div>
                 </div>
-                
-                <div class="focus-areas">
+
+                <div style="margin-top: 1.25rem; padding: 1rem; border-radius: 12px; background: rgba(26,84,144,0.04); border: 1px solid var(--border);">
+                    <strong style="display: block; margin-bottom: 0.5rem; color: var(--text-dark);">Overall Summary</strong>
+                    <p id="detailedSummaryText" style="margin: 0; color: var(--text-medium); line-height: 1.6;">-</p>
+                </div>
+
+                <div class="stats-grid" style="margin-top: 1.25rem;" id="detailedStatsGrid">
+                    <div class="stat-item">
+                        <div class="stat-label">Total</div>
+                        <div class="stat-value" id="detailTotal">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Correct</div>
+                        <div class="stat-value" id="detailCorrect">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Wrong</div>
+                        <div class="stat-value" id="detailWrong">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Accuracy</div>
+                        <div class="stat-value" id="detailAccuracy">0%</div>
+                    </div>
+                </div>
+
+                <div class="focus-areas" style="margin-top: 1.5rem;">
                     <h5>Areas to Focus On</h5>
-                    <ul>
-                        <li>Roman numbers - Practice conversion between Roman and Arabic numerals</li>
-                        <li>Square Roots - Focus on mental calculation techniques for perfect squares</li>
-                        <li>Volume unit conversions - Review metric and imperial volume relationships</li>
+                    <ul id="focusAreasList">
+                        <li>Loading...</li>
                     </ul>
                 </div>
-                
+
+                <div class="focus-areas" style="margin-top: 1.5rem;">
+                    <h5>Missed Questions</h5>
+                    <div id="missedQuestionsList" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">-</div>
+                </div>
+
+                <div class="focus-areas" style="margin-top: 1.5rem;">
+                    <h5>Unclear Questions</h5>
+                    <div id="unclearQuestionsList" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">-</div>
+                </div>
+
                 <div style="margin-top: 1.5rem;">
-                    <strong style="color: var(--text-dark); display: block; margin-bottom: 0.75rem;">Previous Tests</strong>
-                    <div class="answer-sheets">
-                        <button class="sheet-btn" onclick="showNotification('Opening test 1 results...')">Test 1</button>
-                        <button class="sheet-btn" onclick="showNotification('Opening test 2 results...')">Test 2</button>
-                        <button class="sheet-btn" onclick="showNotification('Opening test 3 results...')">Test 3</button>
-                        <button class="sheet-btn" onclick="showNotification('Opening test 4 results...')">Test 4</button>
-                        <button class="sheet-btn" onclick="showNotification('View more tests...')">></button>
-                    </div>
+                    <strong style="color: var(--text-dark); display: block; margin-bottom: 0.75rem;">Question-by-Question Review</strong>
+                    <div id="questionDetailsList" style="display: grid; gap: 1rem;"></div>
                 </div>
             </div>
             
-            <button onclick="closeModal('detailedModal')">Close</button>
+            <button onclick="closeModal('detailedModal')" style="margin-top: 1rem;">Close</button>
         </div>
     </div>
     

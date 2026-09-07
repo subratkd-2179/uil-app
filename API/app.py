@@ -10,10 +10,17 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 import secrets
 import os
+import base64
+from io import BytesIO
 from datetime import datetime
 import json
 import sqlite3
 import logging
+
+try:
+    import requests
+except Exception:
+    requests = None
 
 # MySQL support
 try:
@@ -31,16 +38,26 @@ app = Flask(__name__)
 CORS(app)
 
 ENV_PATH = Path(__file__).resolve().parent / '.env'
-load_dotenv(ENV_PATH)
+print(f"Loading environment variables from {ENV_PATH}")
+load_dotenv(ENV_PATH, override=True)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('uil_tutor_api')
 logger.setLevel(logging.INFO)
 
+for key in ('CHATGPT_API_KEY', 'OPENAI_API_KEY'):
+    value = os.environ.get(key)
+    if value:
+        logger.info('Loaded %s from environment.', key)
+
 # Configuration
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png'}
 MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB
+ALLOWED_EXTENSIONS.update({
+    'bmp', 'dib', 'gif', 'ico', 'jif', 'jfif', 'jpe', 'tif', 'tiff', 'webp'
+})
+MAX_AI_PDF_PAGES = int(os.environ.get('MAX_AI_PDF_PAGES', '50'))
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
@@ -49,7 +66,7 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Database (SQLite fallback)
-DB_PATH = 'uil_tutor.db'
+DB_PATH = os.environ.get('DATABASE_FILE', 'uil_tutor.db')
 
 @app.before_request
 def log_request_debug():
@@ -193,46 +210,28 @@ except Exception as exc:
 # Utility Functions
 # ==========================================
 
-def _convert_placeholders_for_mysql(query):
-    """Convert SQLite ? placeholders to MySQL %s placeholders."""
-    result = []
-    in_single_quote = False
-    in_double_quote = False
-    escaped = False
-
-    for char in query:
-        if char == "'" and not in_double_quote and not escaped:
-            in_single_quote = not in_single_quote
-        elif char == '"' and not in_single_quote and not escaped:
-            in_double_quote = not in_double_quote
-
-        if char == '?' and not in_single_quote and not in_double_quote:
-            result.append('%s')
-        else:
-            result.append(char)
-
-        escaped = (char == '\\' and not escaped)
-
-    return ''.join(result)
-
 def db_execute(cursor, query, params=None):
-    """Execute a SQL statement using the correct placeholder style."""
+    """
+    Execute SQL using the correct placeholder style.
 
-    if params is None:
-        params = ()
+    SQLite uses:
+        ?
 
-    print(f"Original query : {query}")
-    print(f"Cursor type    : {type(cursor)}")
+    MySQL Connector uses:
+        %s
+    """
 
-    # Detect mysql.connector
-    if cursor.__class__.__module__.startswith("mysql.connector"):
-        query = _convert_placeholders_for_mysql(query)
-        print(f"MySQL query    : {query}")
+    params = params or ()
 
-    print(f"Parameters     : {params}")
+    # Detect whether this is a MySQL cursor
+    cursor_module = cursor.__class__.__module__.lower()
 
-    return cursor.execute(query, params)
+    if "mysql" in cursor_module:
+        query = query.replace("?", "%s")
 
+    cursor.execute(query, params)
+
+    return cursor
 
 
 def allowed_file(filename):
@@ -296,6 +295,512 @@ def analyze_weak_areas(correct, total):
     
     return weak_areas
 
+
+CHATGPT_PROMPT = """
+You are the evaluation engine for a UIL academic competition tutoring system. I have attached a student answer sheet containing the questions, the student's responses, and the teacher's marks/comments.
+
+Review the entire sheet carefully before judging anything. Use the teacher's evaluation as your main reference point, then independently compare each student answer to its corresponding question. For every question, determine whether the answer is correct, partially correct, or incorrect, and identify specific mistakes, missing information, weak reasoning, or unclear responses. Where relevant, suggest improvements in a constructive way.
+
+Base your evaluation strictly on what is present in the sheet. Do not invent information, scores, or content that isn't there. Keep the tone respectful, encouraging, and constructive throughout.
+
+Keep `student_answer_summary` to at most 8 words, `feedback` to at most 16 words, and each `missing_points` item to at most 8 words. Include no more than two missing points per question. This keeps a full multi-question evaluation within the response limit.
+
+Return ONLY valid JSON, with no markdown fences, code blocks, or extra text before or after it. The output must match this exact structure:
+
+```
+{
+  "total_questions": 0,
+  "correct_answers": 0,
+  "wrong_answers": 0,
+    "accuracy": 0,
+  "focus_areas": [],
+  "missed_questions": [],
+  "unclear_questions": [],
+  "summary": "",
+  "question_details": [
+    {
+      "question_number": 1,
+      "teacher_score": "",
+      "student_answer_summary": "",
+      "status": "correct",
+      "feedback": "",
+      "missing_points": []
+    }
+  ]
+}
+```
+
+Follow these rules exactly:
+- `total_questions` must equal the total number of questions found on the sheet.
+- `correct_answers`, `wrong_answers`, and `accuracy` must be internally consistent with each other and with `question_details`.
+- `accuracy` must be calculated as (correct_answers / total_questions) * 100, rounded to two decimal places.
+- `missed_questions` must list the numbers of questions the student got wrong or left unanswered.
+- `unclear_questions` must list the numbers of questions that are unreadable or ambiguous on the sheet.
+- `focus_areas` must list the main topics or skills the student needs to improve, based on patterns across the wrong or weak answers.
+- `summary` must be a short overview of the student's overall performance.
+- `question_details` must contain exactly one object per question on the sheet, in order.
+- If a question is unclear or unreadable, set its `status` to "unclear" and explain why in `feedback`.
+
+"""
+
+
+AI_EVALUATION_SCHEMA = {
+    'type': 'object',
+    'additionalProperties': False,
+    'properties': {
+        'total_questions': {'type': 'integer', 'minimum': 0},
+        'correct_answers': {'type': 'integer', 'minimum': 0},
+        'wrong_answers': {'type': 'integer', 'minimum': 0},
+        'accuracy': {'type': 'number', 'minimum': 0, 'maximum': 100},
+        'focus_areas': {'type': 'array', 'items': {'type': 'string'}},
+        'missed_questions': {'type': 'array', 'items': {'type': 'integer'}},
+        'unclear_questions': {'type': 'array', 'items': {'type': 'integer'}},
+        'summary': {'type': 'string'},
+        'question_details': {
+            'type': 'array',
+            'items': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'question_number': {'type': 'integer', 'minimum': 1},
+                    'teacher_score': {'type': 'string'},
+                    'student_answer_summary': {'type': 'string'},
+                    'status': {'type': 'string', 'enum': ['correct', 'partially_correct', 'wrong', 'unclear']},
+                    'feedback': {'type': 'string'},
+                    'missing_points': {'type': 'array', 'items': {'type': 'string'}},
+                },
+                'required': [
+                    'question_number', 'teacher_score', 'student_answer_summary',
+                    'status', 'feedback', 'missing_points'
+                ],
+            },
+        },
+    },
+    'required': [
+        'total_questions', 'correct_answers', 'wrong_answers', 'accuracy',
+        'focus_areas', 'missed_questions', 'unclear_questions', 'summary',
+        'question_details'
+    ],
+}
+
+
+def prepare_ai_images(uploaded_file):
+    """Return ``(images, error)`` with image bytes suitable for vision input.
+
+    OpenAI vision inputs must be images.  PDFs are therefore rendered page by
+    page with the supported ``pymupdf`` import (not the deprecated ``fitz``
+    alias).  Do not use ``Document.is_empty`` here: it is not part of the
+    PyMuPDF Document API and caused the reported AttributeError.
+    """
+    filename = getattr(uploaded_file, 'filename', '') or ''
+
+    if not filename.lower().endswith('.pdf'):
+        try:
+            from PIL import Image
+
+            uploaded_file.seek(0)
+            image = Image.open(uploaded_file)
+            image.load()
+            if image.mode not in ('RGB', 'RGBA'):
+                image = image.convert('RGBA' if 'transparency' in image.info else 'RGB')
+
+            output = BytesIO()
+            image.save(output, format='PNG', optimize=True)
+            return [(output.getvalue(), f'{Path(filename).stem}.png', 'image/png')], None
+        except Exception as exc:
+            logger.warning('Failed to convert image for AI grading: %s', exc)
+            return [], 'The uploaded image could not be read. Please upload a valid image.'
+        finally:
+            uploaded_file.seek(0)
+
+    try:
+        import pymupdf
+    except ImportError:
+        return [], 'PDF grading requires PyMuPDF. Install dependencies from requirements.txt.'
+
+    try:
+        uploaded_file.seek(0)
+        pdf_bytes = uploaded_file.read()
+        document = pymupdf.open(stream=pdf_bytes, filetype='pdf')
+        try:
+            if document.page_count == 0:
+                return [], 'The uploaded PDF has no pages.'
+
+            if MAX_AI_PDF_PAGES > 0 and document.page_count > MAX_AI_PDF_PAGES:
+                return [], (
+                    f'The uploaded PDF has {document.page_count} pages. '
+                    f'AI grading supports up to {MAX_AI_PDF_PAGES} pages per upload.'
+                )
+
+            images = []
+            # 144 DPI provides readable handwriting while keeping the request
+            # substantially smaller than an unnecessarily high-resolution render.
+            matrix = pymupdf.Matrix(2, 2)
+            for page_number, page in enumerate(document, start=1):
+                pixmap = page.get_pixmap(matrix=matrix, alpha=False)
+                images.append((
+                    pixmap.tobytes('png'),
+                    f'{Path(filename).stem}_page_{page_number}.png',
+                    'image/png',
+                ))
+            return images, None
+        finally:
+            document.close()
+    except Exception as exc:
+        logger.warning('Failed to convert PDF for AI grading: %s', exc)
+        return [], 'The uploaded PDF could not be read. Please upload a valid, unlocked PDF.'
+    finally:
+        uploaded_file.seek(0)
+
+
+def call_chatgpt(prompt, image_file=None):
+    """
+    Call ChatGPT using the OpenAI Responses API
+    and parse the returned JSON.
+    """
+
+    if requests is None:
+        return {
+            'success': False,
+            'error': 'requests library is not available',
+            'accuracy': 0,
+            'correct': 0,
+            'wrong': 0,
+            'total': 0,
+            'focus_areas': ['Unable to call OpenAI'],
+            'timestamp': datetime.now().isoformat()
+        }
+
+    # Support the descriptive key name as well as the existing OpenAI name.
+    api_key = (
+        os.environ.get('CHATGPT_API_KEY')
+        or os.environ.get('OPENAI_API_KEY')
+    )
+
+    api_base = os.environ.get(
+        'CHATGPT_BASE_URL',
+        os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+    )
+
+    model_name = os.environ.get(
+        'CHATGPT_MODEL',
+        os.environ.get(
+            'AI_MODEL',
+            os.environ.get('OPENAI_MODEL', os.environ.get('MODEL', 'gpt-4o-mini'))
+        )
+    )
+
+    if not api_key:
+        logger.error("No ChatGPT/OpenAI API key is configured")
+
+        return {
+            'success': False,
+            'error': 'CHATGPT_API_KEY or OPENAI_API_KEY is not configured',
+            'accuracy': 0,
+            'correct': 0,
+            'wrong': 0,
+            'total': 0,
+            'focus_areas': ['Configure OpenAI API key'],
+            'timestamp': datetime.now().isoformat()
+        }
+
+    # --------------------------------------------------
+    # Build Responses API content
+    # --------------------------------------------------
+    logger.info('Preparing OpenAI request for model=%s.', model_name)
+    content = [
+        {
+            'type': 'input_text',
+            'text': prompt
+        }
+    ]
+
+    # Add the uploaded image, or PNG renderings of every uploaded PDF page.
+    if image_file is not None:
+        image_inputs, conversion_error = prepare_ai_images(image_file)
+        if conversion_error:
+            return {
+                'success': False,
+                'error': conversion_error,
+                'error_type': 'pdf_conversion',
+                'accuracy': 0,
+                'correct': 0,
+                'wrong': 0,
+                'total': 0,
+                'focus_areas': [],
+                'timestamp': datetime.now().isoformat()
+            }
+
+        for image_bytes, filename, mime_type in image_inputs:
+            if mime_type is None:
+                mime_type = 'image/png' if filename.lower().endswith('.png') else 'image/jpeg'
+
+            encoded_image = base64.b64encode(image_bytes).decode('utf-8')
+            content.append({
+                'type': 'input_image',
+                'image_url': f'data:{mime_type};base64,{encoded_image}'
+            })
+
+    # --------------------------------------------------
+    # Responses API payload
+    # --------------------------------------------------
+
+    payload = {
+        'model': model_name,
+
+        'input': [
+            {
+                'role': 'user',
+                'content': content
+            }
+        ],
+
+        # Responses API uses max_output_tokens instead of max_tokens.  A
+        # detailed evaluation can contain dozens of question objects; the old
+        # 1,000-token limit cut the JSON off in the middle of question 13.
+        'max_output_tokens': int(os.environ.get(
+            'CHATGPT_MAX_OUTPUT_TOKENS',
+            os.environ.get('OPENAI_MAX_OUTPUT_TOKENS', '12000')
+        )),
+        # Ask the API to guarantee syntactically valid JSON rather than relying
+        # only on the prompt. Supported Responses models return this in the
+        # normal output_text field handled below.
+        'text': {
+            'format': {
+                'type': 'json_schema',
+                'name': 'student_evaluation',
+                'strict': True,
+                'schema': AI_EVALUATION_SCHEMA,
+            },
+        },
+    }
+
+    endpoint = f"{api_base.rstrip('/')}/responses"
+
+    try:
+
+        logger.info(
+            "Calling OpenAI model=%s endpoint=%s",
+            model_name,
+            endpoint
+        )
+
+        response = requests.post(
+            endpoint,
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            },
+            json=payload,
+            timeout=90
+        )
+
+        # --------------------------------------------------
+        # IMPORTANT:
+        # Print the REAL OpenAI error instead of only
+        # "400 Client Error"
+        # --------------------------------------------------
+
+        if not response.ok:
+
+            try:
+                error_data = response.json()
+                error_text = json.dumps(
+                    error_data,
+                    indent=2
+                )
+            except Exception:
+                error_text = response.text
+
+            logger.error(
+                "OpenAI API ERROR %s:\n%s",
+                response.status_code,
+                error_text
+            )
+
+            return {
+                'success': False,
+                'error': (
+                    f"OpenAI API returned "
+                    f"{response.status_code}: "
+                    f"{error_text}"
+                ),
+                'accuracy': 0,
+                'correct': 0,
+                'wrong': 0,
+                'total': 0,
+                'focus_areas': ['AI grading unavailable'],
+                'timestamp': datetime.now().isoformat()
+            }
+
+        data = response.json()
+
+        if data.get('status') == 'incomplete':
+            reason = (data.get('incomplete_details') or {}).get('reason', 'unknown reason')
+            logger.error('OpenAI response was incomplete: %s', reason)
+            return {
+                'success': False,
+                'error': f'AI grading response was incomplete ({reason}). Please try again.',
+                'accuracy': 0,
+                'correct': 0,
+                'wrong': 0,
+                'total': 0,
+                'focus_areas': ['AI grading unavailable'],
+                'timestamp': datetime.now().isoformat()
+            }
+
+        # --------------------------------------------------
+        # Extract output_text from Responses API
+        # --------------------------------------------------
+
+        raw = ''
+
+        for output_item in data.get('output', []):
+
+            if output_item.get('type') != 'message':
+                continue
+
+            for content_item in output_item.get('content', []):
+
+                if content_item.get('type') == 'output_text':
+
+                    raw += content_item.get('text', '')
+
+        raw = raw.strip()
+
+        if not raw:
+            logger.error(
+                "OpenAI returned no text. Full response: %s",
+                json.dumps(data, indent=2)
+            )
+
+            raise ValueError(
+                'Empty model response'
+            )
+
+        logger.info(
+            "OpenAI response received successfully"
+        )
+
+        # --------------------------------------------------
+        # Remove possible Markdown JSON fences
+        # --------------------------------------------------
+
+        json_text = raw.strip()
+
+        if json_text.startswith('```json'):
+            json_text = json_text[7:]
+
+        elif json_text.startswith('```'):
+            json_text = json_text[3:]
+
+        if json_text.endswith('```'):
+            json_text = json_text[:-3]
+
+        json_text = json_text.strip()
+
+        # --------------------------------------------------
+        # Parse AI JSON
+        # --------------------------------------------------
+
+        try:
+            parsed = json.loads(json_text)
+
+        except json.JSONDecodeError as exc:
+
+            logger.error(
+                "AI returned invalid JSON.\n"
+                "JSON error: %s\n"
+                "Raw response:\n%s",
+                exc,
+                raw
+            )
+
+            return {
+                'success': False,
+                'error': (
+                    'AI returned invalid JSON: '
+                    + str(exc)
+                ),
+                'raw_response': raw,
+                'accuracy': 0,
+                'correct': 0,
+                'wrong': 0,
+                'total': 0,
+                'focus_areas': ['AI response parsing failed'],
+                'timestamp': datetime.now().isoformat()
+            }
+
+        # Add timestamp if AI didn't provide one
+        parsed['timestamp'] = (
+            parsed.get('timestamp')
+            or datetime.now().isoformat()
+        )
+
+        # Default success if missing
+        if 'success' not in parsed:
+            parsed['success'] = True
+
+        # The requested JSON uses descriptive field names, while the rest of
+        # this API uses short names. Normalize the AI response in one place.
+        parsed['total'] = parsed.get('total', parsed.get('total_questions', 0))
+        parsed['correct'] = parsed.get('correct', parsed.get('correct_answers', 0))
+        parsed['wrong'] = parsed.get('wrong', parsed.get('wrong_answers', 0))
+        parsed['accuracy'] = parsed.get('accuracy', parsed.get('accuracy ', 0))
+
+        return parsed
+
+    except requests.exceptions.Timeout:
+
+        logger.error(
+            "OpenAI request timed out"
+        )
+
+        return {
+            'success': False,
+            'error': 'OpenAI request timed out',
+            'accuracy': 0,
+            'correct': 0,
+            'wrong': 0,
+            'total': 0,
+            'focus_areas': ['AI grading unavailable'],
+            'timestamp': datetime.now().isoformat()
+        }
+
+    except requests.exceptions.RequestException as exc:
+
+        logger.error(
+            "OpenAI network/request error: %s",
+            exc
+        )
+
+        return {
+            'success': False,
+            'error': str(exc),
+            'accuracy': 0,
+            'correct': 0,
+            'wrong': 0,
+            'total': 0,
+            'focus_areas': ['AI grading unavailable'],
+            'timestamp': datetime.now().isoformat()
+        }
+
+    except Exception as exc:
+
+        logger.exception(
+            "Unexpected OpenAI error"
+        )
+
+        return {
+            'success': False,
+            'error': str(exc),
+            'accuracy': 0,
+            'correct': 0,
+            'wrong': 0,
+            'total': 0,
+            'focus_areas': ['AI grading unavailable'],
+            'timestamp': datetime.now().isoformat()
+        }
 # ==========================================
 # API Routes
 # ==========================================
@@ -492,13 +997,10 @@ def register():
             return jsonify({'error': 'username and password are required'}), 400
 
         conn = get_db()
-        print("Database connection established for registration.",conn)
         cursor = conn.cursor()
 
         # Check if username already exists (UNIQUE constraint)
-        print("Checking if username exists in database for registration 111.",cursor)
         db_execute(cursor, 'SELECT id FROM users WHERE username = ?', (username,))
-        print("Checking if username exists in database for registration.",cursor)
         if cursor.fetchone():
             conn.close()
             return jsonify({'error': 'username already exists'}), 400
@@ -511,15 +1013,13 @@ def register():
 
         # Hash password before storing
         password_hash = generate_password_hash(password)
-        
+
         # INSERT into users table: username, email, password_hash
         # (token and created_at are handled by database defaults)
-        logger.info("Inserting new user into database: username=%s, email=%s", username, email)
         db_execute(cursor,
             'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
             (username, email, password_hash)
         )
-        logger.info("User %s registered successfully", username)
         conn.commit()
         conn.close()
 
@@ -643,72 +1143,75 @@ def train_model():
 @app.route('/api/evaluate', methods=['POST'])
 def evaluate_student():
     """
-    Handle student evaluation
-    Expects: student_id and answer sheet file
+    Handle student evaluation by grading the uploaded sheet with ChatGPT.
     """
     try:
-        # Validate request
-        if 'student_id' not in request.form or 'answers' not in request.files:
-            return jsonify({'error': 'Missing required fields'}), 400
-        
-        student_id = request.form['student_id'].strip()
-        answers_file = request.files['answers']
-        
+        student_id = request.form.get('student_id', '').strip()
+        answers_file = request.files.get('answers')
+
         if not student_id:
-            return jsonify({'error': 'Student ID cannot be empty'}), 400
-        
-        if answers_file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-        
-        if not allowed_file(answers_file.filename):
-            return jsonify({'error': 'Invalid file type'}), 400
-        
-        # Save answer sheet
-        filename = secure_filename(f"answers_{student_id}_{datetime.now().timestamp()}_{answers_file.filename}")
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        answers_file.save(filepath)
-        
-        # Mock evaluation logic - in production, use ML model
-        # This would analyze the student's answers against training data
-        total_questions = 50  # Example
-        correct_answers = 47  # Mock result
-        wrong_answers = total_questions - correct_answers
-        
-        accuracy = calculate_accuracy(correct_answers, total_questions)
-        weak_areas = analyze_weak_areas(correct_answers, total_questions)
-        
-        # Store in database
+            student_id = f"anonymous-{datetime.now().strftime('%Y%m%d%H%M%S')}-{secrets.token_hex(4)}"
+
+        if not answers_file or answers_file.filename == '':
+            return jsonify({'error': 'Please upload an answer sheet for AI grading.'}), 400
+
+        if answers_file and answers_file.filename:
+            if not allowed_file(answers_file.filename):
+                return jsonify({'error': 'Invalid file type'}), 400
+
+            filename = secure_filename(f"answers_{student_id}_{datetime.now().timestamp()}_{answers_file.filename}")
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            answers_file.save(filepath)
+
+        ai_result = call_chatgpt(CHATGPT_PROMPT, answers_file)
+        if not ai_result.get('success'):
+            status_code = 400 if ai_result.get('error_type') == 'pdf_conversion' else 502
+            return jsonify({
+                'error': ai_result.get('error', 'AI grading failed'),
+                'ai_result': ai_result
+            }), status_code
+
+        total_questions = ai_result.get('total', 0)
+        correct_answers = ai_result.get('correct', 0)
+        wrong_answers = ai_result.get('wrong', 0)
+        accuracy = ai_result.get('accuracy', calculate_accuracy(correct_answers, total_questions))
+        weak_areas = ai_result.get('focus_areas', [])
+
         conn = get_db()
         cursor = conn.cursor()
-        
-        # Create or get student
         db_execute(cursor, 'SELECT * FROM students WHERE student_id = ?', (student_id,))
         student = cursor.fetchone()
-        
         if not student:
             db_execute(cursor, 'INSERT INTO students (student_id) VALUES (?)', (student_id,))
-        
-        # Record evaluation
+
         db_execute(cursor, '''
             INSERT INTO evaluations 
             (student_id, correct_answers, wrong_answers, total_questions, accuracy, focus_areas)
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (student_id, correct_answers, wrong_answers, total_questions, accuracy, json.dumps(weak_areas)))
-        
+
         conn.commit()
         conn.close()
-        
-        return jsonify({
+
+        response_data = {
             'success': True,
+            'student_id': student_id,
             'correct': correct_answers,
             'wrong': wrong_answers,
             'total': total_questions,
             'accuracy': accuracy,
             'focus_areas': weak_areas,
+            'ai_result': ai_result,
             'timestamp': datetime.now().isoformat()
-        }), 200
-        
+        }
+        response_data.update({
+            key: value for key, value in ai_result.items()
+            if key not in {'success', 'correct', 'wrong', 'total', 'accuracy', 'focus_areas', 'timestamp'}
+        })
+        return jsonify(response_data), 200
+
     except Exception as e:
+        logger.error("Evaluation failed: %s", str(e))
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/student/<student_id>/history', methods=['GET'])
@@ -824,7 +1327,7 @@ def training_status():
     try:
         conn = get_db()
         cursor = conn.cursor()
-        
+        logger.info("Fetching recent training data uploads from database")
         db_execute(cursor, '''
             SELECT filename, file_type, status, upload_date
             FROM training_data
@@ -847,6 +1350,7 @@ def training_status():
         return jsonify({'training_data': training_data}), 200
         
     except Exception as e:
+        logger.error("Error fetching training data status: %s", e)
         return jsonify({'error': str(e)}), 500
 
 @app.errorhandler(404)
